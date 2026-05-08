@@ -256,3 +256,167 @@ export interface EnvironmentConfig {
   features: Record<string, boolean>;
   debug: boolean;
 }
+
+// ==========================================
+// Auth Service Event Types (DeafAuth + PinkSync)
+// ==========================================
+
+export type AuthEventType =
+  | 'AUTH_INITIATED'
+  | 'AUTH_COMPLETED'
+  | 'AUTH_FAILED'
+  | 'TOKEN_REFRESHED'
+  | 'TOKEN_REVOKED'
+  | 'USER_PREFERENCES_UPDATED'
+  | 'ACCOMMODATION_REQUESTED'
+  | 'ACCOMMODATION_FULFILLED'
+  | 'SESSION_HANDSHAKE'
+  | 'PROTOCOL_SYNC';
+
+export interface BaseEvent {
+  id: string;
+  type: AuthEventType;
+  timestamp: Date;
+  source: 'deafauth' | 'pinksync';
+  userId: string;
+  data: unknown;
+}
+
+export interface AuthEvent extends BaseEvent {
+  correlationId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface EventHandler {
+  handle(event: AuthEvent): Promise<void>;
+}
+
+export interface EventPublisher {
+  publish(event: AuthEvent): Promise<void>;
+}
+
+export interface EventSubscriber {
+  subscribe(eventType: AuthEventType, handler: EventHandler): void;
+  unsubscribe(eventType: AuthEventType, handler: EventHandler): void;
+}
+
+// ==========================================
+// Gemini Service Types
+// ==========================================
+
+export interface HeatmapAnalysisResult {
+  summary: string;
+  keyFactors: string[];
+  recommendations: string[];
+}
+
+export interface Task {
+  id: string;
+  name: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  priority: number;
+  deadline?: Date;
+}
+
+export interface Event {
+  category: string;
+  name: string;
+  date: string;
+  location: string;
+  description: string;
+  isGlobal?: boolean;
+}
+
+export interface MarketingContentSuggestion {
+  content: string;
+  accessibilityTip: string;
+}
+
+export interface TrainingScenario {
+  scenario: string;
+  choices: string[];
+  correctAnswer?: number;
+  explanation?: string;
+}
+
+export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+
+export interface MediaAnalysisResult {
+  analysis: string;
+  accessibilityScore: number;
+  criticalIssues: string[];
+}
+
+export interface PinkSyncSession {
+  session_id: string;
+  status: string;
+  user_id: string;
+  location_id: string;
+  mode: string;
+  accommodation: {
+    type: string;
+    provider?: string;
+    estimated_start_seconds?: number;
+  };
+  endpoints: {
+    user_url: string;
+    staff_url: string;
+    captions_url?: string;
+  };
+}
+
+export interface AccommodationMatch {
+  provider: string;
+  confidence: number;
+  accommodationType: string;
+  estimatedWaitTime?: number;
+  alternatives?: string[];
+}
+
+export interface PartnerProvider {
+  id: string;
+  name: string;
+  capabilities: string[];
+  region: string;
+  active: boolean;
+}
+
+// ==========================================
+// FastAPI Backend Bridge Types
+// ==========================================
+
+export interface FastAPIConfig {
+  baseUrl: string;
+  apiKey?: string;
+  timeout?: number;
+}
+
+export interface FastAPIResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+  metadata?: {
+    timestamp: string;
+    request_id: string;
+    processing_time_ms: number;
+  };
+}
+
+export interface ProtocolSyncRequest {
+  user_id: string;
+  session_id: string;
+  accommodation_type: string;
+  preferences: AccessibilityPreferences;
+  context?: Record<string, unknown>;
+}
+
+export interface ProtocolSyncResponse {
+  sync_status: 'success' | 'partial' | 'failed';
+  matched_providers: PartnerProvider[];
+  session_token: string;
+  expires_at: string;
+}

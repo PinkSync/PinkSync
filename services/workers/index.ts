@@ -7,9 +7,9 @@
 
 import { BackgroundJob, JobType, JobStatus } from '@/types/index.ts';
 import { events } from '@/services/event-orchestrator/index.ts';
-import { pinkFlowEngine } from '@/services/pinkflow';
-import { ragEngine } from '@/services/rag-engine';
-import { apiBroker } from '@/services/api-broker';
+import { pinkFlowEngine } from '@/services/pinkflow/index.ts';
+import { ragEngine } from '@/services/rag-engine/index.ts';
+import { apiBroker } from '@/services/api-broker/index.ts';
 
 class WorkerSystem {
   private jobs: Map<string, BackgroundJob> = new Map();

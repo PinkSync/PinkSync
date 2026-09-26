@@ -5,7 +5,7 @@
  * for accessibility insights and provider recommendations.
  */
 
-import { ResearchDocument, VectorSearchQuery, VectorSearchResult, ResearchType } from '@/types';
+import { ResearchDocument, VectorSearchQuery, VectorSearchResult, ResearchType } from '@/types/index.ts';
 import { events } from '@/services/event-orchestrator/index.ts';
 
 class RagEngine {

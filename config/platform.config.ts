@@ -5,7 +5,7 @@
  * Supports: standalone, extension, embedded, api, signal, notificator
  */
 
-import { env } from '@/lib/env';
+import { env } from '@/lib/env.ts';
 
 export type PlatformEnvironment = 
   | 'standalone'    // Full web application

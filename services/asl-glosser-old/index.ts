@@ -6,7 +6,7 @@
  */
 
 import { events } from '@/services/event-orchestrator/index.ts';
-import { env } from '@/lib/env';
+import { env } from '@/lib/env.ts';
 
 export interface ASLContentProvider {
   id: string;

@@ -27,25 +27,22 @@ export class EventBus implements EventPublisher, EventSubscriber {
    * Publish an event to all registered handlers
    */
   async publish(event: AuthEvent): Promise<void> {
-    console.log(`[EventBus] Publishing event: ${event.type} from ${event.source}`);
-    
-    // Log the event
+    if (!event?.type || !event.id || !event.userId) {
+      throw new Error('Event must include id, type, and userId');
+    }
+
     this.logEvent(event);
-    
-    // Get handlers for this event type
+
     const eventHandlers = this.handlers.get(event.type);
-    
     if (!eventHandlers || eventHandlers.size === 0) {
-      console.log(`[EventBus] No handlers registered for event type: ${event.type}`);
       return;
     }
 
-    // Execute all handlers in parallel
-    const handlerPromises = Array.from(eventHandlers).map(handler => 
-      this.executeHandler(handler, event)
+    // Snapshot the set so subscribe/unsubscribe calls during delivery do not
+    // change which handlers receive the current event.
+    await Promise.all(
+      Array.from(eventHandlers, (handler) => this.executeHandler(handler, event)),
     );
-
-    await Promise.all(handlerPromises);
   }
 
   /**
@@ -65,9 +62,11 @@ export class EventBus implements EventPublisher, EventSubscriber {
    */
   unsubscribe(eventType: AuthEventType, handler: EventHandler): void {
     const eventHandlers = this.handlers.get(eventType);
-    if (eventHandlers) {
-      eventHandlers.delete(handler);
-      console.log(`[EventBus] Handler unsubscribed from event type: ${eventType}`);
+    if (!eventHandlers) return;
+
+    eventHandlers.delete(handler);
+    if (eventHandlers.size === 0) {
+      this.handlers.delete(eventType);
     }
   }
 

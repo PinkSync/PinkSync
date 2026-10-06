@@ -210,7 +210,7 @@ Each API has a unique gradient color scheme:
 Update the API base URL to point to your backend:
 
 ```typescript
-const API_BASE_URL = 'https://api.pinksync.ai/v1';
+const API_BASE_URL = 'https://sync.mbtq.dev/api/v1';
 ```
 
 For development:

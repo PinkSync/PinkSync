@@ -1,130 +1,80 @@
-/**
- * Authentication API
- * Supports both web app and browser extension authentication
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { deafAuthService } from '@/services/deafauth';
 
-/**
- * GET /api/auth/preferences - Get user preferences (for extension)
- */
+const errorResponse = (code: string, message: string, status: number) =>
+  NextResponse.json({ success: false, error: { code, message } }, { status });
+
+function bearerToken(request: NextRequest, bodyToken?: unknown): string | null {
+  const header = request.headers.get('authorization');
+  if (header?.startsWith('Bearer ')) return header.slice(7).trim() || null;
+  return typeof bodyToken === 'string' && bodyToken.length <= 512 ? bodyToken : null;
+}
+
+async function authenticatedUser(request: NextRequest, bodyToken?: unknown) {
+  const token = bearerToken(request, bodyToken);
+  return token ? { token, user: await deafAuthService.validateToken(token) } : null;
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    
-    if (!token) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'NO_TOKEN', message: 'Authorization token required' },
-      }, { status: 401 });
-    }
-    
-    // Validate token and get user
-    const user = await deafAuthService.validateToken(token);
-    
-    if (!user) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'INVALID_TOKEN', message: 'Invalid or expired token' },
-      }, { status: 401 });
-    }
-    
-    // Return user preferences
+    const session = await authenticatedUser(request);
+    if (!session?.user) return errorResponse('INVALID_TOKEN', 'Authentication required', 401);
     return NextResponse.json({
       success: true,
-      preferences: user.preferences,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        displayName: user.profile?.displayName,
-      },
+      preferences: session.user.preferences,
+      user: { id: session.user.id, username: session.user.username, email: session.user.email, displayName: session.user.profile?.displayName },
     });
-  } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: {
-        code: 'AUTH_ERROR',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-    }, { status: 500 });
+  } catch {
+    return errorResponse('AUTH_ERROR', 'Authentication failed', 500);
   }
 }
 
-/**
- * POST /api/auth/* - Handle various auth actions
- */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, credentials, verification, preferences } = body;
+    if (!body || typeof body !== 'object' || typeof body.action !== 'string') return errorResponse('INVALID_INPUT', 'A valid action is required', 400);
 
-    switch (action) {
+    switch (body.action) {
       case 'login': {
-        // For extension compatibility, allow login without verification
-        const verificationData = verification || {
-          pattern: ['1', '2', '3'],
-          type: 'pattern-matching',
-        };
-        
-        const result = await deafAuthService.authenticate(credentials, verificationData);
-        return NextResponse.json({
-          success: result.success,
-          data: result.success ? { user: result.user, token: result.token } : undefined,
-          // Extension expects different structure
-          user: result.user,
-          token: result.token,
-          error: result.error ? { code: 'AUTH_FAILED', message: result.error } : undefined,
-        });
+        const credentials = body.credentials;
+        const verification = body.verification;
+        if (!credentials || typeof credentials.username !== 'string' || typeof credentials.password !== 'string' || credentials.username.length > 128 || credentials.password.length > 1024) return errorResponse('INVALID_INPUT', 'Valid credentials are required', 400);
+        if (!verification || !Array.isArray(verification.pattern) || verification.pattern.length < 3 || verification.pattern.length > 32) return errorResponse('INVALID_VERIFICATION', 'Visual verification is required', 400);
+        const result = await deafAuthService.authenticate(credentials, verification);
+        return NextResponse.json({ success: result.success, data: result.success ? { user: result.user, token: result.token } : undefined, user: result.user, token: result.token, error: result.error ? { code: 'AUTH_FAILED', message: 'Authentication failed' } : undefined }, { status: result.success ? 200 : 401 });
       }
-
       case 'register': {
-        const result = await deafAuthService.register(credentials, body.profile);
-        return NextResponse.json({
-          success: result.success,
-          data: result.user,
-          error: result.error ? { code: 'REGISTRATION_FAILED', message: result.error } : undefined,
-        });
+        const { credentials, profile } = body;
+        if (!credentials || typeof credentials.username !== 'string' || typeof credentials.password !== 'string' || !profile || typeof profile.email !== 'string' || typeof profile.displayName !== 'string') return errorResponse('INVALID_INPUT', 'Valid registration details are required', 400);
+        const result = await deafAuthService.register(credentials, profile);
+        return NextResponse.json({ success: result.success, data: result.user, error: result.error ? { code: 'REGISTRATION_FAILED', message: 'Registration failed' } : undefined }, { status: result.success ? 200 : 400 });
       }
-
       case 'validate': {
-        const user = await deafAuthService.validateToken(body.token);
-        return NextResponse.json({
-          success: !!user,
-          data: user,
-        });
+        const session = await authenticatedUser(request, body.token);
+        return NextResponse.json({ success: !!session?.user, data: session?.user ?? null }, { status: session?.user ? 200 : 401 });
       }
-
       case 'logout': {
-        await deafAuthService.logout(body.token);
-        return NextResponse.json({
-          success: true,
-        });
+        const session = await authenticatedUser(request, body.token);
+        if (!session?.user) return errorResponse('INVALID_TOKEN', 'Authentication required', 401);
+        await deafAuthService.logout(session.token);
+        return NextResponse.json({ success: true });
       }
-
       case 'update-preferences': {
-        await deafAuthService.updatePreferences(body.userId, preferences);
-        return NextResponse.json({
-          success: true,
-        });
+        const session = await authenticatedUser(request);
+        if (!session?.user) return errorResponse('INVALID_TOKEN', 'Authentication required', 401);
+        if (body.userId !== session.user.id || !body.preferences || typeof body.preferences !== 'object') return errorResponse('FORBIDDEN', 'Cannot update another user', 403);
+        await deafAuthService.updatePreferences(session.user.id, body.preferences);
+        return NextResponse.json({ success: true });
       }
-
-      default:
-        return NextResponse.json({
-          success: false,
-          error: { code: 'INVALID_ACTION', message: 'Invalid action' },
-        }, { status: 400 });
+      default: return errorResponse('INVALID_ACTION', 'Invalid action', 400);
     }
-  } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: {
-        code: 'AUTH_ERROR',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-    }, { status: 500 });
+  } catch {
+    return errorResponse('AUTH_ERROR', 'Authentication request failed', 500);
   }
 }
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export { bearerToken };
+export { authenticatedUser };

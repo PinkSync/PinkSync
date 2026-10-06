@@ -6,8 +6,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pinkFlowEngine } from '@/services/pinkflow';
 import { workerSystem } from '@/services/workers';
 import { TransformationType } from '@/types';
+import { deafAuthService } from '@/services/deafauth';
+
+function authToken(request: NextRequest): string | null {
+  const value = request.headers.get('authorization');
+  return value?.startsWith('Bearer ') ? value.slice(7).trim() || null : null;
+}
+
+async function requireUser(request: NextRequest) {
+  const token = authToken(request);
+  return token ? deafAuthService.validateToken(token) : null;
+}
 
 export async function POST(request: NextRequest) {
+  const user = await requireUser(request);
+  if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
   try {
     const body = await request.json();
     const { content, type, userId, preferences, async = false } = body;
@@ -64,6 +77,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const user = await requireUser(request);
+  if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

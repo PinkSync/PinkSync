@@ -4,8 +4,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { workerSystem } from '@/services/workers';
+import { deafAuthService } from '@/services/deafauth';
+
+async function requireUser(request: NextRequest) {
+  const value = request.headers.get('authorization');
+  const token = value?.startsWith('Bearer ') ? value.slice(7).trim() : null;
+  return token ? deafAuthService.validateToken(token) : null;
+}
 
 export async function GET(request: NextRequest) {
+  if (!await requireUser(request)) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

@@ -4,6 +4,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBroker } from '@/services/api-broker';
+import { deafAuthService } from '@/services/deafauth';
+
+async function requireUser(request: NextRequest) {
+  const value = request.headers.get('authorization');
+  const token = value?.startsWith('Bearer ') ? value.slice(7).trim() : null;
+  return token ? deafAuthService.validateToken(token) : null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,6 +69,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!await requireUser(request)) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
   try {
     const body = await request.json();
     const { action, userId, needs } = body;

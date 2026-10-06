@@ -62,7 +62,12 @@ async function router(req: Request): Promise<Response> {
   // Static files
   if (path.startsWith("/static/") || path.startsWith("/public/")) {
     try {
-      const filePath = `.${path}`;
+      const requestedPath = decodeURIComponent(path);
+      const filePath = `${Deno.cwd()}${requestedPath}`;
+      const root = `${Deno.cwd()}/`;
+      if (!filePath.startsWith(root) || requestedPath.includes('..')) {
+        return new Response('Not Found', { status: 404 });
+      }
       const file = await Deno.readFile(filePath);
       const ext = path.split('.').pop() || '';
       const contentType = {

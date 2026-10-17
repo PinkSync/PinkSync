@@ -98,8 +98,8 @@ class ApiBroker {
     }
 
     // Filter by accessibility score
-    if (needs.minAccessibilityScore) {
-      candidates = candidates.filter(p => p.accessibilityScore >= needs.minAccessibilityScore);
+    if (needs.minAccessibilityScore !== undefined) {
+      candidates = candidates.filter(p => p.accessibilityScore >= needs.minAccessibilityScore!);
     }
 
     // Filter by keywords
